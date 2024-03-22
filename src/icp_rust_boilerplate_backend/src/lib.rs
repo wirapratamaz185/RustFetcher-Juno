@@ -1,3 +1,5 @@
+use std::task::Context;
+
 use candid::Principal;
 use ic_cdk::print;
 use junobuild_macros::{
@@ -48,27 +50,63 @@ struct Locale {
     currency: String,
 }
 
-#[update]
-async fn fetch_receipt(document_id: String) -> Result<Receipt, String> {
-    // Define the canister ID of the Satellite Datastore
-    let satellite_canister_id: Principal = "n5isd-iaaaa-aaaal-adtra-cai".parse().unwrap();
+#[on_set_doc(collections = ["Receipts_json"])]
+async fn on_set_doc(Context: OnSetDocContext<Receipt>) -> Result<(), String> {
+    // decode the new data saved in the datastore
+    let mut receipt: Receipt = decode_doc_data(&context.data.data.after.data);
 
-    // Define the method name to call on satellite canister
-    let method_name = "get_doc";
+    // printout for receipt 
+    print(format!("[on_set_doc] Caller: {}", (context.caller.to_text())));
 
-    // define the arguments to pass to the method
-    let args = (document_id,);  // Tuple of arguments
+    // printout for collection
+    print(format!("[on_set_doc] Collection : {?}", context.data.collection));
 
-    // Call the method on the Satellite Datastore
-    let result = call(satellite_canister_id, method_name, args).await;
+    //printout for principal  
+    print(format!("[on_set_doc] Principal : {} {}", data.principal.value, data.value.value));
 
-    match result {
-        Ok(receipt) => {
-            let receipt: Receipt = decode_doc_data(receipt);
-            Ok(receipt)
-        }
-        Err(err) => {
-            Err(err.to_string())
-        }
-    }
-}   
+    // encode data back to blob
+    let encode_data = encode_doc_data(&data)?;
+
+    // construct parameters to call the function that save the data in the datasotre
+    let doc: SetDoc = SetDoc {
+        data: encode_data,
+        description: context.data.data.after.description,
+        updated_at: Some(context.data.data.after.updated_at),
+    };
+
+    // call the function that save the data in the datasotre
+    let result = set_doc_store(
+        context.data.collection,
+        context.data.key,
+        doc,
+        context.data.data.after.updated_at,
+    ).await;
+
+    // return the result
+    Ok(result)
+}
+
+// #[update]
+// async fn fetch_receipt(document_id: String) -> Result<Receipt, String> {
+//     // Define the canister ID of the Satellite Datastore
+//     let satellite_canister_id: Principal = "n5isd-iaaaa-aaaal-adtra-cai".parse().unwrap();
+
+//     // Define the method name to call on satellite canister
+//     let method_name = "get_doc";
+
+//     // define the arguments to pass to the method
+//     let args = (document_id,);  // Tuple of arguments
+
+//     // Call the method on the Satellite Datastore
+//     let result = call(satellite_canister_id, method_name, args).await;
+
+//     match result {
+//         Ok(receipt) => {
+//             let receipt: Receipt = decode_doc_data(receipt);
+//             Ok(receipt)
+//         }
+//         Err(err) => {
+//             Err(err.to_string())
+//         }
+//     }
+// }   
